@@ -216,7 +216,7 @@ class UniversalViewer(QMainWindow):
         self.slider_vol.valueChanged.connect(self.set_volume)
 
         self.combo_speed = QComboBox()
-        self.combo_speed.addItems(["x0.5", "x1.0", "x1.5", "x1.7", "x2.0"])
+        self.combo_speed.addItems(["x0.5", "x1.0", "x1.5", "x1.7", "x2.0", "x4.0", "x8.0"])
         self.combo_speed.setCurrentIndex(1)
         self.combo_speed.setFixedWidth(60)
         self.combo_speed.currentIndexChanged.connect(self.set_speed)
@@ -594,3 +594,5 @@ if __name__ == '__main__':
     window = UniversalViewer()
     window.show()
     sys.exit(app.exec())
+
+# pyinstaller --noconsole --onefile --icon="icon.ico" --name "WPMV_Player" main.py
