@@ -293,6 +293,13 @@ class UniversalViewer(QMainWindow):
         self.media_player.durationChanged.connect(self.duration_changed)
         self.media_player.errorOccurred.connect(self.handle_errors)
 
+        # KIỂM TRA ĐỐI SỐ DÒNG LỆNH (CHO WINDOWS DEFAULT APP)
+        # Nếu app được mở qua double click file, sys.argv sẽ có len > 1
+        if len(sys.argv) > 1:
+            file_to_open = sys.argv[1]
+            # Sử dụng QTimer để đảm bảo giao diện đã load xong trước khi mở file
+            QTimer.singleShot(200, lambda: self.load_content(file_to_open))
+
     def take_screenshot(self):
         if self.stack.currentIndex() != 1 or self.video_view.isHidden():
             return
