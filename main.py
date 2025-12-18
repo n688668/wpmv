@@ -595,4 +595,4 @@ if __name__ == '__main__':
     window.show()
     sys.exit(app.exec())
 
-# pyinstaller --noconsole --onefile --icon="icon.ico" --name "WPMV_Player" main.py
+# pyinstaller --noconsole --onefile --icon="icon.ico" --add-data "icon.ico;." --name "WPMV_Player" main.py
