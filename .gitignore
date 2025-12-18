@@ -2,5 +2,4 @@
 build/
 dist/
 WPMV_Player.spec
-dependencies/
-Output/
+Installer/

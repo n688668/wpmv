@@ -2,21 +2,32 @@ import sys
 import os
 import time
 
-# Thiết lập biến môi trường để giảm bớt các log không cần thiết của Qt nếu muốn
-# os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg=false"
+# --- HÀM HỖ TRỢ ĐƯỜNG DẪN KHI ĐÓNG GÓI EXE ---
+def resource_path(relative_path):
+    """ Lấy đường dẫn tuyệt đối đến tài nguyên, phục vụ cho PyInstaller """
+    try:
+        # PyInstaller tạo thư mục tạm và lưu đường dẫn trong _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 try:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QWidget, QVBoxLayout,
                                  QHBoxLayout, QPushButton, QLabel, QSlider, QStyle, QGraphicsView,
                                  QGraphicsScene, QGraphicsPixmapItem, QStackedWidget, QComboBox,
-                                 QFrame)
+                                 QFrame, QDialog)
     from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
     from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
-    from PyQt6.QtCore import Qt, QUrl, QTimer, QRectF, QEvent, QStandardPaths, pyqtSignal, QPoint
-    from PyQt6.QtGui import QPixmap, QPalette, QColor, QWheelEvent, QKeyEvent, QPainter, QMovie, QKeySequence, QImage, QAction
+    from PyQt6.QtCore import (Qt, QUrl, QTimer, QRectF, QEvent, QStandardPaths,
+                                pyqtSignal, QPoint, QSize, QSizeF)
+    from PyQt6.QtGui import (QPixmap, QPalette, QColor, QWheelEvent, QKeyEvent,
+                             QPainter, QMovie, QKeySequence, QImage, QAction, QIcon)
     from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+    # Thêm hỗ trợ SVG
+    from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 except ImportError:
-    print("Vui lòng cài đặt đầy đủ: pip install PyQt6 PyQt6-Qt6 PyQt6-QtMultimedia")
+    # Không dùng print trong --noconsole, nhưng giữ lại phòng trường hợp chạy debug
     sys.exit(1)
 
 class ClickableSlider(QSlider):
@@ -86,6 +97,11 @@ class UniversalViewer(QMainWindow):
         self.setWindowTitle(self.base_title)
         self.setGeometry(100, 100, 1100, 800)
 
+        # Thiết lập Icon cho cửa sổ (đã được xử lý đường dẫn)
+        icon_path = resource_path("icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.set_dark_theme()
         self.duration = 0
         self.current_file_path = ""
@@ -98,7 +114,7 @@ class UniversalViewer(QMainWindow):
 
         self.stack = QStackedWidget()
 
-        # Mode 1: Xem Ảnh / GIF
+        # Mode 1: Xem Ảnh / GIF / SVG
         self.image_scene = QGraphicsScene()
         self.image_view = CustomGraphicsView(self.image_scene)
         self.image_item = None
@@ -134,7 +150,7 @@ class UniversalViewer(QMainWindow):
         self.placeholder = ClickableLabel(
             "WPMV\n\n"
             "Nhấn 'O' hoặc click vào đây để mở file\n"
-            "(Hỗ trợ Ảnh, GIF, Video, Audio)\n\n"
+            "(Hỗ trợ Ảnh, SVG, GIF, Video WebM, Audio)\n\n"
             "*** 2025 - dongt6140@gmail.com ***"
         )
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -293,11 +309,8 @@ class UniversalViewer(QMainWindow):
         self.media_player.durationChanged.connect(self.duration_changed)
         self.media_player.errorOccurred.connect(self.handle_errors)
 
-        # KIỂM TRA ĐỐI SỐ DÒNG LỆNH (CHO WINDOWS DEFAULT APP)
-        # Nếu app được mở qua double click file, sys.argv sẽ có len > 1
         if len(sys.argv) > 1:
             file_to_open = sys.argv[1]
-            # Sử dụng QTimer để đảm bảo giao diện đã load xong trước khi mở file
             QTimer.singleShot(200, lambda: self.load_content(file_to_open))
 
     def take_screenshot(self):
@@ -310,9 +323,7 @@ class UniversalViewer(QMainWindow):
             base_name = os.path.splitext(os.path.basename(self.current_file_path))[0]
             save_path = os.path.join(folder, f"{base_name}_{int(time.time())}.jpg")
             pixmap.save(save_path, "JPG")
-            print(f"Đã lưu: {save_path}")
-        except Exception as e:
-            print(f"Lỗi chụp ảnh: {e}")
+        except Exception: pass
 
     def display_error(self, message):
         filename = os.path.basename(self.current_file_path) if self.current_file_path else "Không rõ"
@@ -365,7 +376,12 @@ class UniversalViewer(QMainWindow):
         downloads_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
         file_dialog = QFileDialog(self)
         file_dialog.setDirectory(downloads_path)
-        file_dialog.setNameFilters(["Media Files (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.mp4 *.avi *.mkv *.mp3 *.wav *.flac *.m4a)", "All Files (*)"])
+        file_dialog.setNameFilters([
+            "Media Files (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg *.mp4 *.avi *.mkv *.webm *.mov *.mp3 *.wav *.flac *.m4a)",
+            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.svg)",
+            "Video Files (*.mp4 *.avi *.mkv *.webm *.mov)",
+            "All Files (*)"
+        ])
         if file_dialog.exec():
             files = file_dialog.selectedFiles()
             if files: self.load_content(files[0])
@@ -374,8 +390,8 @@ class UniversalViewer(QMainWindow):
         try:
             folder = os.path.dirname(current_file)
             self.current_file_path = os.path.normpath(current_file)
-            supported_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp',
-                              '.mp4', '.avi', '.mkv', '.mov', '.mp3', '.wav', '.flac', '.m4a'}
+            supported_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.svg',
+                              '.mp4', '.avi', '.mkv', '.webm', '.mov', '.mp3', '.wav', '.flac', '.m4a'}
             files = [os.path.normpath(os.path.join(folder, f)) for f in os.listdir(folder)
                      if os.path.splitext(f)[1].lower() in supported_exts]
             self.playlist = sorted(files)
@@ -420,8 +436,9 @@ class UniversalViewer(QMainWindow):
         self.image_item = None
         self.update_playlist(file_path)
 
-        image_exts = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp']
-        media_exts = ['.mp4', '.avi', '.mkv', '.mov', '.mp3', '.wav', '.flac', '.m4a']
+        image_exts = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.svg']
+        media_exts = ['.mp4', '.avi', '.mkv', '.webm', '.mov', '.mp3', '.wav', '.flac', '.m4a']
+
         if ext in image_exts: self.show_image_mode(file_path)
         elif ext in media_exts: self.show_media_mode(file_path)
         else: self.display_error(f"Định dạng '{ext}' không hỗ trợ.")
@@ -443,6 +460,10 @@ class UniversalViewer(QMainWindow):
                 self.image_item = self.image_scene.addWidget(label)
                 self.movie.start()
                 self.image_scene.setSceneRect(QRectF(0, 0, float(size.width()), float(size.height())))
+            elif ext == '.svg':
+                self.image_item = QGraphicsSvgItem(path)
+                self.image_scene.addItem(self.image_item)
+                self.image_scene.setSceneRect(self.image_item.boundingRect())
             else:
                 pixmap = QPixmap(path)
                 if pixmap.isNull(): raise Exception("Lỗi tải ảnh")
@@ -450,6 +471,7 @@ class UniversalViewer(QMainWindow):
                 self.image_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
                 self.image_scene.addItem(self.image_item)
                 self.image_scene.setSceneRect(QRectF(pixmap.rect()))
+
             self.image_view.resetTransform()
             QTimer.singleShot(10, self.center_content)
         except Exception as e: self.display_error(str(e))
@@ -482,15 +504,19 @@ class UniversalViewer(QMainWindow):
         if self.stack.currentIndex() != 0: return
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         dialog = QPrintDialog(printer, self)
-        if dialog.exec() == QPrintDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.render_to_printer(printer)
 
     def render_to_printer(self, printer):
-        pixmap = self.movie.currentPixmap() if self.movie else self.image_item.pixmap()
-        if not pixmap or pixmap.isNull(): return
         painter = QPainter()
         if not painter.begin(printer): return
         rect = printer.pageRect(QPrinter.Unit.Point)
+        image = QImage(self.image_scene.sceneRect().size().toSize(), QImage.Format.Format_ARGB32)
+        image.fill(Qt.GlobalColor.white)
+        img_painter = QPainter(image)
+        self.image_scene.render(img_painter)
+        img_painter.end()
+        pixmap = QPixmap.fromImage(image)
         size = pixmap.size()
         size.scale(int(rect.width()), int(rect.height()), Qt.AspectRatioMode.KeepAspectRatio)
         painter.drawPixmap(int(rect.x()), int(rect.y()), int(size.width()), int(size.height()), pixmap)
@@ -508,7 +534,7 @@ class UniversalViewer(QMainWindow):
             self.btn_screenshot.hide()
         else:
             self.music_label.hide(); self.video_view.show()
-            self.video_item.setSize(QRectF(0, 0, 1280, 720).size())
+            self.video_item.setSize(QSizeF(1280.0, 720.0))
             self.btn_screenshot.show()
 
         self.media_player.setSource(QUrl.fromLocalFile(path))
@@ -548,16 +574,23 @@ class UniversalViewer(QMainWindow):
         self.btn_mute.setIcon(self.style().standardIcon(icon))
 
     def set_speed(self):
-        speed = float(self.combo_speed.currentText().replace("x", ""))
-        self.media_player.setPlaybackRate(speed)
+        try:
+            speed_text = self.combo_speed.currentText().replace("x", "")
+            speed = float(speed_text)
+            self.media_player.setPlaybackRate(speed)
+        except: pass
 
     def handle_errors(self, error, error_string):
         if error != QMediaPlayer.Error.NoError:
             self.display_error(f"Lỗi Media: {error_string}")
 
 if __name__ == '__main__':
+    # Hỗ trợ High DPI cho màn hình độ phân giải cao
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+
     window = UniversalViewer()
     window.show()
     sys.exit(app.exec())
