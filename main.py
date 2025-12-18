@@ -2,6 +2,9 @@ import sys
 import os
 import time
 
+# Thiết lập biến môi trường để giảm bớt các log không cần thiết của Qt nếu muốn
+# os.environ["QT_LOGGING_RULES"] = "qt.multimedia.ffmpeg=false"
+
 try:
     from PyQt6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QWidget, QVBoxLayout,
                                  QHBoxLayout, QPushButton, QLabel, QSlider, QStyle, QGraphicsView,
@@ -20,7 +23,6 @@ class ClickableSlider(QSlider):
     """Thanh trượt tùy chỉnh cho phép nhảy tới vị trí click chuột ngay lập tức"""
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # Trong PyQt6, dùng position() thay cho x()
             new_value = self.minimum() + ((self.maximum() - self.minimum()) * event.position().x()) / self.width()
             self.setValue(int(new_value))
             self.sliderMoved.emit(self.value())
@@ -133,8 +135,7 @@ class UniversalViewer(QMainWindow):
             "WPMV\n\n"
             "Nhấn 'O' hoặc click vào đây để mở file\n"
             "(Hỗ trợ Ảnh, GIF, Video, Audio)\n\n"
-            "dongt6140@gmail.com\n"
-            "@2025"
+            "*** 2025 - dongt6140@gmail.com ***"
         )
         self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.placeholder.setStyleSheet("font-size: 18px; color: #888; border: 2px dashed #444; margin: 20px;")
@@ -282,7 +283,8 @@ class UniversalViewer(QMainWindow):
 
         # Media Player (PyQt6 Setup)
         self.media_player = QMediaPlayer()
-        self.audio_output = QAudioOutput() # PyQt6 yêu cầu đối tượng audio riêng
+        self.audio_output = QAudioOutput()
+        self.audio_output.setVolume(0.7) # Mặc định 70%
         self.media_player.setAudioOutput(self.audio_output)
         self.media_player.setVideoOutput(self.video_item)
 
@@ -331,6 +333,10 @@ class UniversalViewer(QMainWindow):
             if self.playlist and len(self.playlist) > 1:
                 self.open_prev_file()
                 return
+        if event.key() == Qt.Key.Key_Space:
+            if self.stack.currentIndex() == 1:
+                self.play_video()
+                return
         if self.stack.currentIndex() in [0, 1]:
             if event.key() in [Qt.Key.Key_Plus, Qt.Key.Key_Equal]:
                 self.zoom_content(1.25)
@@ -367,7 +373,6 @@ class UniversalViewer(QMainWindow):
                      if os.path.splitext(f)[1].lower() in supported_exts]
             self.playlist = sorted(files)
 
-            # Cập nhật tiêu đề cửa sổ
             filename = os.path.basename(self.current_file_path)
             self.setWindowTitle(f"{self.base_title} - {filename}")
 
@@ -498,6 +503,7 @@ class UniversalViewer(QMainWindow):
             self.music_label.hide(); self.video_view.show()
             self.video_item.setSize(QRectF(0, 0, 1280, 720).size())
             self.btn_screenshot.show()
+
         self.media_player.setSource(QUrl.fromLocalFile(path))
         self.media_player.play()
         self.video_view.resetTransform()
